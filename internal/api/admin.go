@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -157,7 +158,45 @@ func (s *Server) listAudit(w http.ResponseWriter, r *http.Request, u *store.User
 
 // --- DefectDojo ----------------------------------------------------------------------------
 
-const dojoKey = "defectdojo"
+// dojoTitle builds a short finding title: the single most important kind of
+// exposure (if any) and the main technology, e.g. "Tryb debug: Werkzeug 2.0.1".
+func dojoTitle(sv *store.Service) string {
+	label := map[string]string{"debug": "Tryb debug", "exposure": "Ekspozycja zasobu", "staging": "Środowisko testowe",
+		"admin-panel": "Panel administracyjny", "database": "Baza danych dostępna sieciowo", "iot": "Urządzenie IoT"}
+	kind := ""
+	for _, c := range []string{"debug", "exposure", "staging", "admin-panel", "database", "iot"} { // most severe first
+		if slices.Contains(sv.Categories, c) {
+			kind = label[c]
+			break
+		}
+	}
+	main := ""
+	for _, t := range sv.Tech { // skip detections that only restate the category (e.g. "Środowisko testowe / staging")
+		if t.Category == "staging" || t.Category == "admin-panel" || t.Category == "auth" || t.Category == "info" {
+			continue
+		}
+		main = strings.TrimSpace(t.Name + " " + t.Version)
+		break
+	}
+	if main == "" {
+		main = strings.TrimSpace(sv.Product + " " + sv.Version)
+	}
+	if main == "" {
+		main = sv.Name
+	}
+	if sv.Title != "" && len(sv.Tech) == 0 {
+		main += " (" + sv.Title + ")"
+	}
+	if kind == "" {
+		return main
+	}
+	return kind + ": " + main
+}
+
+// DojoSettingKey is the settings key holding the (encrypted) DefectDojo config.
+const DojoSettingKey = "defectdojo"
+
+const dojoKey = DojoSettingKey
 
 func (s *Server) dojoConfig(ctx context.Context) (dojo.Config, error) {
 	var c dojo.Config
@@ -224,20 +263,7 @@ func (s *Server) buildFinding(ctx context.Context, sv *store.Service, informatio
 		}
 		tech = append(tech, fmt.Sprintf("%s (%d%%)", x, t.Confidence))
 	}
-	what := sv.Name
-	if len(sv.Tech) > 0 {
-		what = sv.Tech[0].Name
-		if sv.Tech[0].Version != "" {
-			what += " " + sv.Tech[0].Version
-		}
-	}
-	for _, c := range sv.Categories {
-		switch c {
-		case "staging", "admin-panel", "exposure", "debug", "database", "iot":
-			what = map[string]string{"staging": "Środowisko testowe", "admin-panel": "Panel administracyjny", "exposure": "Ekspozycja zasobu",
-				"debug": "Tryb debug", "database": "Baza danych dostępna sieciowo", "iot": "Urządzenie IoT"}[c] + " – " + what
-		}
-	}
+	what := dojoTitle(sv)
 	var d strings.Builder
 	fmt.Fprintf(&d, "**Usługa:** %s:%d/%s (%s %s %s)\n\n", sv.Address, sv.Port, sv.Proto, sv.Name, sv.Product, sv.Version)
 	if sv.Hostname != "" {

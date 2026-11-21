@@ -93,9 +93,22 @@ Docker: `docker compose up -d` (opcjonalnie `--profile lab`).
 
 ## Narzędzia CLI
 
-`asi serve | lab | gen-key | crypto-check | rotate-key --new-key-file f | user add <login> <rola> | user passwd <login> | healthcheck | version`
+`asi serve | lab | gen-key | crypto-check | rotate-key --new-key-file f | user add <login> <rola> | user passwd <login> | dojo-config … | healthcheck | version`
 
 `asi crypto-check` pokazuje surową zawartość zaszyfrowanych kolumn i weryfikuje, że żadna nie zawiera tekstu jawnego.
+
+## DefectDojo
+
+Integrację konfiguruje się w UI (*Integracje*) albo z linii poleceń, np. przy automatycznym wdrożeniu:
+
+```bash
+ASI_DOJO_TOKEN=<token API v2> asi dojo-config --url http://127.0.0.1:8070 --product "AGH – powierzchnia ataku" --engagement "Sentinelis – ciągłe discovery"
+```
+
+Polecenie testuje połączenie (`/api/v2/user_profile/`) i zapisuje token zaszyfrowany, tak samo jak UI. Token można też podać przez `--token-file`; nigdy jako argument. Produkt i engagement są tworzone automatycznie.
+Wybrane usługi i zmiany wysyła się do DefectDojo z listy *Znaleziska* lub *Zmiany* (przycisk *Wyślij do DefectDojo*) jako findingi informacyjne z dowodami.
+
+Lokalna instancja DefectDojo w Dockerze (oficjalne repozytorium `django-DefectDojo`): w `.env` ustaw własne `DD_SECRET_KEY` i `DD_CREDENTIAL_AES_256_KEY` (domyślne są publiczne), a port nginx przypnij do loopbacku w `docker-compose.override.yml` (`ports: !override` → `"127.0.0.1:8070:8080"`). Bez tego Docker opublikuje DefectDojo z pominięciem firewalla.
 
 ## Testy
 

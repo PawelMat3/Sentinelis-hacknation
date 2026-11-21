@@ -212,3 +212,15 @@ func itoa(i int64) string {
 	b, _ := json.Marshal(i)
 	return string(b)
 }
+
+func TestDojoTitleIsShort(t *testing.T) {
+	sv := &store.Service{Name: "http", Product: "Werkzeug httpd", Categories: []string{"debug", "staging", "framework"},
+		Tech: []store.Tech{{Name: "Środowisko testowe / staging", Category: "staging"}, {Name: "Werkzeug (serwer deweloperski)", Category: "framework", Version: "2.0.1"}}}
+	if got := dojoTitle(sv); got != "Tryb debug: Werkzeug (serwer deweloperski) 2.0.1" {
+		t.Fatalf("title %q", got)
+	}
+	plain := &store.Service{Name: "ssh", Product: "OpenSSH", Version: "9.6"}
+	if got := dojoTitle(plain); got != "OpenSSH 9.6" {
+		t.Fatalf("title %q", got)
+	}
+}

@@ -35,6 +35,7 @@ import (
 	"asi/internal/clock"
 	"asi/internal/crypto"
 	"asi/internal/demo"
+	"asi/internal/dojo"
 	"asi/internal/lab"
 	"asi/internal/orchestrator"
 	"asi/internal/scanner"
@@ -89,12 +90,14 @@ func main() {
 		err = rotateKey(args)
 	case "user":
 		err = userCmd(args)
+	case "dojo-config":
+		err = dojoConfigCmd(args)
 	case "healthcheck":
 		err = healthcheck()
 	case "version":
 		fmt.Printf("asi %s (%s/%s, %s)\n", version, runtime.GOOS, runtime.GOARCH, runtime.Version())
 	default:
-		fmt.Fprintf(os.Stderr, "unknown command %q\nusage: asi [serve|lab|gen-key|crypto-check|rotate-key|user|healthcheck|version]\n", cmd)
+		fmt.Fprintf(os.Stderr, "unknown command %q\nusage: asi [serve|lab|gen-key|crypto-check|rotate-key|user|dojo-config|healthcheck|version]\n", cmd)
 		os.Exit(2)
 	}
 	if err != nil {
@@ -365,6 +368,62 @@ func rotateKey(args []string) error {
 		return err
 	}
 	fmt.Println("Data key re-wrapped. Replace the old master key with the new one (ASI_MASTER_KEY or key file) before restarting.")
+	return nil
+}
+
+// dojoConfigCmd configures the DefectDojo integration from the command line
+// (headless deployments), e.g.:
+//
+//	ASI_DOJO_TOKEN=... asi dojo-config --url http://127.0.0.1:8070 --product AGH --engagement "Sentinelis"
+//
+// The API token is read from --token-file or ASI_DOJO_TOKEN (never from argv)
+// and stored encrypted like the token entered in the UI.
+func dojoConfigCmd(args []string) error {
+	fs := flag.NewFlagSet("dojo-config", flag.ExitOnError)
+	var c common
+	c.flags(fs)
+	u := fs.String("url", "", "DefectDojo base URL, e.g. https://defectdojo.example.org")
+	tokenFile := fs.String("token-file", "", "file with the DefectDojo API v2 token (default: $ASI_DOJO_TOKEN)")
+	product := fs.String("product", "", "product name (created if missing)")
+	productType := fs.String("product-type", "Attack Surface", "product type for auto-created products")
+	engagement := fs.String("engagement", "", "engagement name (created if missing)")
+	engagementID := fs.Int("engagement-id", 0, "existing engagement id (instead of --product/--engagement)")
+	testTitle := fs.String("test-title", "Sentinelis discovery", "title of the DefectDojo test")
+	minSev := fs.String("min-severity", "Info", "minimum severity imported by DefectDojo")
+	verifyTLS := fs.Bool("verify-tls", true, "verify the DefectDojo TLS certificate")
+	check := fs.Bool("test", true, "check the connection before saving")
+	fs.Parse(args)
+	token := os.Getenv("ASI_DOJO_TOKEN")
+	if *tokenFile != "" {
+		b, err := os.ReadFile(*tokenFile)
+		if err != nil {
+			return err
+		}
+		token = strings.TrimSpace(string(b))
+	}
+	cfg := dojo.Config{URL: *u, APIKey: token, ProductName: *product, ProductTypeName: *productType, EngagementName: *engagement,
+		EngagementID: *engagementID, TestTitle: *testTitle, MinimumSeverity: *minSev, VerifyTLS: *verifyTLS}
+	if err := cfg.Valid(); err != nil {
+		return err
+	}
+	ctx := context.Background()
+	if *check {
+		user, err := dojo.New(cfg).Ping(ctx)
+		if err != nil {
+			return fmt.Errorf("DefectDojo connection test failed: %w", err)
+		}
+		fmt.Printf("DefectDojo connection OK (API user: %s)\n", user)
+	}
+	st, _, err := c.open()
+	if err != nil {
+		return err
+	}
+	defer st.Close()
+	if err := st.SetSetting(ctx, api.DojoSettingKey, cfg); err != nil {
+		return err
+	}
+	st.Audit(ctx, "cli", "update", "settings", 0, "defectdojo "+cfg.URL, "")
+	fmt.Printf("saved: %s, product %q, engagement %q (token stored encrypted)\n", cfg.URL, cfg.ProductName, cfg.EngagementName)
 	return nil
 }
 
