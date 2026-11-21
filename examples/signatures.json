@@ -1,0 +1,14 @@
+{"signatures": [
+  {"name": "Uczelniany portal USOSweb", "category": "app", "description": "Przykład: tytuł i ścieżka charakterystyczna dla portalu",
+   "enabled": true,
+   "definition": {"condition": "any", "min_confidence": 40, "curiosity": 5, "matchers": [
+     {"type": "title", "pattern": "USOSweb", "weight": 0.8},
+     {"type": "path", "path": "/kontroler.php", "status": [200], "pattern": "USOS", "weight": 0.6}]}},
+  {"name": "Nagłówek środowiska deweloperskiego", "category": "staging", "description": "Przykład: nagłówek X-Env ujawnia środowisko",
+   "enabled": true,
+   "definition": {"condition": "any", "curiosity": 20, "matchers": [
+     {"type": "header", "name": "X-Env", "pattern": "dev|test", "weight": 0.9}]}},
+  {"name": "Znany panel (favicon)", "category": "admin-panel", "description": "Przykład: hash favicony mmh3 (format Shodan) – wartość do podmiany",
+   "enabled": true,
+   "definition": {"curiosity": 15, "matchers": [{"type": "favicon", "value": "116323821,-335242539", "weight": 0.95}]}}
+]}

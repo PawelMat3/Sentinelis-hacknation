@@ -1,0 +1,18 @@
+{
+  "format": "asi-results/v1",
+  "hosts": [
+    {
+      "address": "10.50.0.20",
+      "hostname": "panel.example.edu.pl",
+      "state": "active",
+      "tags": ["import"],
+      "note": "Wynik z zewnętrznego narzędzia",
+      "services": [
+        {"port": 443, "proto": "tcp", "name": "https", "product": "nginx", "version": "1.18.0",
+         "url": "https://panel.example.edu.pl/", "http_status": 200, "title": "Panel administracyjny – logowanie", "server": "nginx/1.18.0",
+         "tags": ["admin"], "note": "Panel bez SSO"},
+        {"port": 6379, "proto": "tcp", "name": "redis", "product": "Redis key-value store", "version": "6.0.16"}
+      ]
+    }
+  ]
+}

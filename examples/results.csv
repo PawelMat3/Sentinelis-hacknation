@@ -1,0 +1,5 @@
+address,hostname,port,proto,name,product,version,title,http_status,server,url,tags,note
+10.50.0.5,www.example.edu.pl,443,tcp,https,nginx,1.24.0,Strona główna,200,nginx/1.24.0,https://www.example.edu.pl/,www,Serwis główny uczelni
+10.50.0.5,www.example.edu.pl,22,tcp,ssh,OpenSSH,9.6p1,,,,,,
+10.50.0.9,,8080,tcp,http,Jetty,10.0.13,Dashboard [Jenkins],200,Jetty(10.0.13),http://10.50.0.9:8080/,ci,Jenkins zespołu IT
+10.50.0.12,,3306,tcp,mysql,MySQL,8.0.35,,,,,db,

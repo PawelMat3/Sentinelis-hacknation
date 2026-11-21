@@ -1,0 +1,9 @@
+bin/
+data/
+data-demo/
+*.db
+*.db-wal
+*.db-shm
+master.key
+*.tar.gz
+.env

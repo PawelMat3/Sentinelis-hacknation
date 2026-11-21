@@ -1,0 +1,4 @@
+# keep LF everywhere (shell scripts, Dockerfile, Go sources) regardless of core.autocrlf
+* text=auto eol=lf
+*.png binary
+*.ico binary

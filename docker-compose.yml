@@ -1,0 +1,60 @@
+# docker compose up -d                      -> ASI on http://localhost:7780 (bridge network)
+# docker compose --profile lab up -d        -> plus a fake lab (127.0.1.1-10 inside the shared network namespace)
+# docker compose --profile hostnet up -d asi-hostnet
+#                                           -> ASI in the HOST network namespace: use this to scan Docker labs
+#                                              published on the same machine (target "localhost" / 127.0.0.1).
+#                                              From the bridge network "localhost" is the ASI container itself.
+x-asi-env: &asi-env
+  ASI_DEMO: "${ASI_DEMO:-1}"
+  ASI_ADMIN_PASSWORD: "${ASI_ADMIN_PASSWORD:-}"
+  ASI_DEMO_PASSWORD: "${ASI_DEMO_PASSWORD:-}"
+  ASI_MASTER_KEY: "${ASI_MASTER_KEY:-}"     # if empty, a key file is generated in the volume
+  ASI_NMAP_PRIVILEGED: "true"
+  ASI_MAX_RATE: "2000"
+  TZ: Europe/Warsaw
+
+services:
+  asi:
+    build: .
+    image: asi:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:7780:7780"   # publish behind a TLS reverse proxy for remote access
+    environment:
+      <<: *asi-env
+    cap_drop: [ALL]
+    cap_add: [NET_RAW, NET_ADMIN, CHOWN, DAC_OVERRIDE, SETUID, SETGID]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    volumes:
+      - asi-data:/data
+
+  asi-hostnet:
+    profiles: ["hostnet"]
+    build: .
+    image: asi:latest
+    restart: unless-stopped
+    network_mode: host          # sees ports published by other compose stacks on this host
+    environment:
+      <<: *asi-env
+      ASI_LISTEN: "127.0.0.1:7780"   # loopback only; port chosen not to collide with lab services
+    cap_drop: [ALL]
+    cap_add: [NET_RAW, NET_ADMIN, CHOWN, DAC_OVERRIDE, SETUID, SETGID]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    volumes:
+      - asi-data:/data
+
+  lab:
+    profiles: ["lab"]
+    image: asi:latest
+    command: ["lab", "--prefix", "127.0.1."]
+    network_mode: "service:asi"
+    restart: unless-stopped
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+
+volumes:
+  asi-data:

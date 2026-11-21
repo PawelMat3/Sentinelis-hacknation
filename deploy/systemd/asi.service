@@ -1,0 +1,51 @@
+[Unit]
+Description=Sentinelis - Attack Surface Intelligence
+Documentation=file:///opt/asi/docs/ARCHITEKTURA.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=asi
+Group=asi
+EnvironmentFile=/etc/asi/asi.env
+WorkingDirectory=/opt/asi
+ExecStart=/opt/asi/bin/asi serve
+Restart=on-failure
+RestartSec=5
+# graceful stop: running scans are paused and resume from checkpoint
+TimeoutStopSec=40
+KillSignal=SIGTERM
+
+# Raw sockets for nmap SYN scan / ICMP discovery without running as root.
+# Ambient capabilities are inherited by the nmap child process.
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK AF_PACKET
+ReadWritePaths=/opt/asi/data
+ReadOnlyPaths=/etc/asi
+UMask=0077
+MemoryMax=2G
+TasksMax=512
+
+[Install]
+WantedBy=multi-user.target

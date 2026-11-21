@@ -1,0 +1,6 @@
+value,tags,note
+10.20.0.0/18,kampus;siec-glowna,Sieć główna kampusu
+10.30.0.0/20,dmz,Strefa DMZ - skan tylko w oknie nocnym
+10.40.1.1-10.40.1.254,wydzial-x,Zakres wydziałowy
+staging.rekrutacja.example.edu.pl,staging,Środowisko testowe rekrutacji
+www.example.edu.pl,www,
