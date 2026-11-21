@@ -143,6 +143,8 @@ function dur(sec) {
   return Math.round(sec / 86400 * 10) / 10 + ' d';
 }
 const prioChip = p => h('span', { class: 'chip ' + (p === 'critical' ? 'crit' : p) }, PL.priority[p] || p || '—');
+/* priority + curiosity score in one compact element (tables) */
+const prioScore = (p, score) => h('span', { class: 'prio', title: `Ocena ciekawości ${score}/100` }, prioChip(p), h('span', { class: 'num' }, score));
 const stateChip = st => h('span', { class: 'chip ' + st }, PL.state[st] ?? st);
 const statusChip = st => h('span', { class: 'chip ' + st }, PL.status[st] || st);
 const tags = (list) => (list || []).map(t => h('span', { class: 'tag' }, t));

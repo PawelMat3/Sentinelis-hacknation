@@ -10,9 +10,11 @@ const QUICK_STEPS = [
 
 async function pageQuick(root) {
   const data = await GET('/api/quickscan');
-  root.append(pageHead('Szybki skan', 'Wpisz cel i kliknij „Skanuj” – reszta dzieje się automatycznie'));
-  root.append(h('div', { class: 'cards', style: { marginBottom: '14px' } }, QUICK_STEPS.map(([n, t, d]) =>
-    h('div', { class: 'card' }, h('div', { class: 'hd' }, h('span', { class: 'chip running' }, n), h('b', null, t)), h('div', { class: 'small muted' }, d)))));
+  root.append(pageHead('Szybki skan', 'Wpisz cel i kliknij „Skanuj”. Kolejne kroki wykonają się automatycznie.'));
+  // what will happen – a plain numbered list below the form (not a row of look-alike cards)
+  const howItWorks = h('details', { style: { marginTop: '14px' } }, h('summary', { class: 'small muted', style: { cursor: 'pointer' } }, 'Co dokładnie zrobi skan?'),
+    h('ol', { class: 'steps', style: { marginTop: '10px' } }, QUICK_STEPS.map(([n, t, d]) =>
+      h('li', null, h('span', { class: 'n' }, n), h('div', null, h('b', null, t), h('div', { class: 'small muted' }, d)), h('span')))));
 
   if (can('scans:run') && can('jobs:create')) {
     const target = h('input', { placeholder: 'np. example.edu.pl  ·  10.0.0.5  ·  10.0.0.0/24', style: { fontSize: '16px', padding: '10px 12px' } });
@@ -29,7 +31,7 @@ async function pageQuick(root) {
       h('div', { class: 'small muted', style: { marginTop: '6px' } }, profHint[profile]));
     drawSeg();
     const status = h('div');
-    const btn = h('button', { class: 'primary', style: { fontSize: '15px', padding: '9px 22px' } }, '▶ Skanuj');
+    const btn = h('button', { class: 'primary', style: { fontSize: '15px', padding: '9px 22px' } }, 'Skanuj');
     btn.addEventListener('click', async () => {
       if (!target.value.trim()) return toast('Wpisz cel', true);
       if (!auth.checked) return toast('Zaznacz potwierdzenie zgody właściciela celu', true);
@@ -46,11 +48,11 @@ async function pageQuick(root) {
       field('Cel (domena, adres IP, zakres lub CIDR – maks. 4096 adresów)', target),
       h('div', { class: 'filters' }, h('label', { class: 'check' }, subs, 'szukaj subdomen (dla domeny)'),
         h('label', { class: 'check', title: data.vuln_lookup ? '' : 'Wyłączone w konfiguracji (ASI_NVD_DISABLE)' }, vul, 'sprawdź znane podatności (CVE)')),
-      h('div', { style: { margin: '6px 0 12px' } }, profSeg),
+      h('div', { style: { margin: '6px 0 12px' } }, h('label', null, 'Zakres portów'), profSeg),
       h('label', { class: 'check', style: { marginBottom: '12px' } }, auth, 'Potwierdzam, że mam zgodę właściciela na skanowanie tego celu (skan jest zapisywany w audycie).'),
-      h('div', null, btn), status));
+      h('div', null, btn), status, howItWorks));
   } else {
-    root.append(h('div', { class: 'notice' }, 'Twoja rola pozwala przeglądać wyniki szybkich skanów, ale nie uruchamiać nowych.'));
+    root.append(h('div', { class: 'notice' }, 'Twoja rola pozwala przeglądać wyniki szybkich skanów, ale nie uruchamiać nowych.'), howItWorks);
   }
 
   root.append(h('div', { class: 'panel flush' }, h('div', { class: 'ph' }, h('h2', null, 'Poprzednie szybkie skany')),
@@ -89,22 +91,24 @@ async function pageQuickResult(root, runId) {
     `${svc.items.filter(s => s.is_web).length} aplikacji WWW`,
     vulnOn ? (vul.length ? `${vul.length} CVE` : (r.status === 'completed' ? 'brak znanych CVE' : '…')) : 'wyłączone',
   ];
-  root.append(h('div', { class: 'cards', style: { marginBottom: '14px' } }, QUICK_STEPS.map(([n, t], i) => {
+  // progress as one numbered list (step state in words), then a single summary line
+  const stLabel = { done: 'gotowe', active: 'trwa', wait: 'czeka', skip: 'pominięto' };
+  root.append(h('div', { class: 'panel', style: { marginBottom: '14px' } }, h('ol', { class: 'steps' }, QUICK_STEPS.map(([n, t], i) => {
     const st = stepState(i, r, vulnOn);
-    const chip = { done: h('span', { class: 'chip ok' }, '✓'), active: h('span', { class: 'chip running' }, '… trwa'), wait: h('span', { class: 'chip outline' }, 'czeka'), skip: h('span', { class: 'chip inactive' }, 'pominięto') }[st];
-    return h('div', { class: 'card' }, h('div', { class: 'hd' }, h('span', { class: 'chip outline' }, n), h('b', null, t), chip), h('div', { class: 'small muted' }, stepInfo[i]),
-      i === 1 && st === 'active' ? h('div', { class: 'progress', style: { marginTop: '6px' } }, h('i', { style: { width: (r.progress * 100) + '%' } })) : null);
-  })));
+    return h('li', { class: st }, h('span', { class: 'n' }, st === 'done' ? '✓' : n),
+      h('div', null, h('b', null, t), h('span', { class: 'small muted' }, ' · ' + stepInfo[i]),
+        i === 1 && st === 'active' ? h('div', { class: 'progress', style: { marginTop: '6px', maxWidth: '360px' } }, h('i', { style: { width: (r.progress * 100) + '%' } })) : null),
+      h('span', { class: 'small ' + (st === 'active' ? '' : 'muted') }, stLabel[st]));
+  }))));
 
   const crit = vul.filter(v => v.cvss >= 9).length, high = vul.filter(v => v.cvss >= 7 && v.cvss < 9).length;
   const techs = new Set(); svc.items.forEach(s => (s.tech || []).forEach(t => { if (t.version) techs.add(t.name + ' ' + t.version); }));
-  root.append(h('div', { class: 'kpis' },
-    h('div', { class: 'kpi' }, h('div', { class: 'v' }, fmtN(new Set(svc.items.map(s => s.host_id)).size)), h('div', { class: 'l' }, 'hosty')),
-    h('div', { class: 'kpi' }, h('div', { class: 'v' }, fmtN(svc.items.length)), h('div', { class: 'l' }, 'otwarte porty / usługi')),
-    h('div', { class: 'kpi' }, h('div', { class: 'v' }, fmtN(techs.size)), h('div', { class: 'l' }, 'technologie z wersją')),
-    h('div', { class: 'kpi crit' }, h('div', { class: 'v' }, fmtN(crit)), h('div', { class: 'l' }, 'CVE krytyczne (CVSS ≥ 9)')),
-    h('div', { class: 'kpi high' }, h('div', { class: 'v' }, fmtN(high)), h('div', { class: 'l' }, 'CVE wysokie (7–8.9)')),
-    h('div', { class: 'kpi' }, h('div', { class: 'v' }, dur(r.active_ms / 1000)), h('div', { class: 'l' }, 'czas skanu'))));
+  root.append(h('div', { class: 'also' },
+    h('span', null, h('b', null, fmtN(new Set(svc.items.map(s => s.host_id)).size)), ' hostów'),
+    h('span', null, h('b', null, fmtN(svc.items.length)), ' usług'),
+    h('span', null, h('b', null, fmtN(techs.size)), ' technologii z wersją'),
+    vulnOn ? h('span', null, h('b', { class: crit ? 'k-gone' : '' }, fmtN(crit)), ' CVE krytycznych, ', h('b', null, fmtN(high)), ' wysokich') : null,
+    h('span', null, 'czas skanu ', h('b', null, dur(r.active_ms / 1000)))));
 
   const cveByService = {};
   vul.forEach(v => { (cveByService[v.service_id] = cveByService[v.service_id] || []).push(v); });

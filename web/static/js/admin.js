@@ -5,7 +5,7 @@
 async function pageJobs(root) {
   const jobs = await GET('/api/jobs');
   root.append(pageHead('Zadania skanowania', 'Cykliczne skany z oknami czasowymi, limitem tempa i adaptacyjnym podziałem na podgrupy',
-    can('jobs:create') ? h('button', { class: 'primary', onclick: () => jobEditor() }, '+ Nowe zadanie') : null));
+    can('jobs:create') ? h('button', { class: 'primary', onclick: () => jobEditor() }, 'Nowe zadanie') : null));
   if (!jobs.length) { root.append(h('div', { class: 'panel empty' }, 'Brak zadań. Utwórz zadanie i dodaj cele (IP, CIDR, zakresy, domeny).')); return; }
   root.append(h('div', { class: 'cards' }, jobs.map(j => {
     const r = j.active_run;
@@ -13,7 +13,7 @@ async function pageJobs(root) {
       h('div', { class: 'hd' }, h('b', null, j.name), j.enabled ? null : h('span', { class: 'chip inactive' }, 'wyłączone'), h('span', { class: 'chip outline' }, j.engine)),
       h('div', { class: 'small muted', style: { marginBottom: '8px' } }, j.description),
       h('div', { class: 'meta' }, h('span', null, `${fmtN(j.address_count)} adresów`), h('span', null, `porty ${j.ports}`), h('span', null, `${j.rate_pps} pps`)),
-      h('div', { class: 'meta' }, h('span', null, '⏱ ' + j.window_text), h('span', { class: j.window_open ? 'k-new' : 'muted' }, j.window_open ? 'okno otwarte' : 'okno zamknięte')),
+      h('div', { class: 'meta' }, h('span', null, 'Okno: ' + j.window_text), h('span', { class: j.window_open ? 'k-new' : 'muted' }, j.window_open ? 'okno otwarte' : 'okno zamknięte')),
       h('div', { class: 'meta' }, h('span', null, j.interval_minutes ? `co ${dur(j.interval_minutes * 60)}` : 'tylko ręcznie'), h('span', null, 'ostatni: ' + ago(j.last_run_at)),
         j.next_run_at && j.interval_minutes ? h('span', null, 'następny: ' + fmtT(j.next_run_at)) : null),
       r ? h('div', { style: { marginTop: '10px' } }, h('div', { class: 'small' }, h('a', { href: '#/runs/' + r.id }, `Przebieg #${r.id}`), ' ', statusChip(r.status), ' ', h('span', { class: 'muted' }, PL.reason[r.status_reason] || '')),
@@ -72,8 +72,8 @@ function jobEditor(job) {
 async function pageJob(root, id) {
   const [j, tg, runs, pv] = await Promise.all([GET('/api/jobs/' + id), GET(`/api/jobs/${id}/targets`), GET('/api/runs?job=' + id), GET(`/api/jobs/${id}/preview`)]);
   root.append(pageHead(j.name, h('a', { href: '#/jobs' }, 'Zadania skanowania'),
-    can('scans:run') ? h('button', { class: 'primary', onclick: async () => { const r = await act(() => POST(`/api/jobs/${id}/run`, {}), 'Uruchomiono / zakolejkowano'); location.hash = '#/runs/' + r.id; } }, '▶ Uruchom (w oknie)') : null,
-    can('scans:run') ? h('button', { title: 'Ignoruje okno czasowe', onclick: async () => { const r = await act(() => POST(`/api/jobs/${id}/run`, { force: true }), 'Uruchomiono natychmiast'); location.hash = '#/runs/' + r.id; } }, '▶ Teraz (poza oknem)') : null,
+    can('scans:run') ? h('button', { class: 'primary', onclick: async () => { const r = await act(() => POST(`/api/jobs/${id}/run`, {}), 'Uruchomiono / zakolejkowano'); location.hash = '#/runs/' + r.id; } }, 'Uruchom w oknie') : null,
+    can('scans:run') ? h('button', { title: 'Ignoruje okno czasowe', onclick: async () => { const r = await act(() => POST(`/api/jobs/${id}/run`, { force: true }), 'Uruchomiono natychmiast'); location.hash = '#/runs/' + r.id; } }, 'Uruchom teraz') : null,
     can('jobs:update') ? h('button', { onclick: () => jobEditor(j) }, 'Edytuj') : null,
     can('jobs:delete') ? h('button', { class: 'danger', onclick: async () => { if (await confirmBox('Usunąć zadanie (wyniki pozostaną)?')) { await act(() => DEL('/api/jobs/' + id), 'Usunięto'); location.hash = '#/jobs'; } } }, 'Usuń') : null));
   root.append(h('div', { class: 'grid g2' },
@@ -99,8 +99,8 @@ async function pageJob(root, id) {
   const addTa = h('textarea', { rows: 3, placeholder: 'IP, CIDR (10.0.0.0/16), zakres (10.0.0.1-50), domena – oddzielone nową linią lub przecinkiem' });
   const file = h('input', { type: 'file', accept: '.csv,.json,.txt' });
   tbox.append(h('div', { class: 'ph' }, h('h2', null, `Cele (${tg.length} wpisów, ${fmtN(j.address_count)} adresów)`), h('div', { class: 'sp' }),
-    can('data:export') ? h('button', { class: 'sm', onclick: () => download(`/api/jobs/${id}/targets/export?format=csv`) }, '⇩ CSV') : null,
-    can('data:export') ? h('button', { class: 'sm', onclick: () => download(`/api/jobs/${id}/targets/export?format=json`) }, '⇩ JSON') : null,
+    can('data:export') ? h('button', { class: 'sm', onclick: () => download(`/api/jobs/${id}/targets/export?format=csv`) }, 'Eksport CSV') : null,
+    can('data:export') ? h('button', { class: 'sm', onclick: () => download(`/api/jobs/${id}/targets/export?format=json`) }, 'Eksport JSON') : null,
     can('jobs:delete') && tg.length ? h('button', { class: 'sm danger', onclick: async () => { if (await confirmBox('Usunąć wszystkie cele?')) { await act(() => DEL(`/api/jobs/${id}/targets`)); render(); } } }, 'Usuń wszystkie') : null));
   if (can('jobs:create')) tbox.append(h('div', { class: 'pb' }, addTa, h('div', { class: 'filters', style: { marginTop: '8px' } },
     h('button', { class: 'primary', onclick: async () => {
@@ -122,7 +122,7 @@ async function pageJob(root, id) {
     { title: 'Tagi', render: t => tags(t.tags) }, { title: 'Notatka', render: t => h('span', { class: 'small' }, t.note) }, { title: 'Źródło', render: t => h('span', { class: 'small muted' }, t.source) },
     { title: '', render: t => h('span', null,
       can('jobs:update') ? h('button', { class: 'sm ghost', onclick: () => targetEdit(id, t) }, 'edytuj') : null,
-      can('jobs:delete') ? h('button', { class: 'sm ghost', onclick: async () => { await act(() => DEL(`/api/jobs/${id}/targets/${t.id}`)); render(); } }, '✕') : null) }], tg)) : h('div', { class: 'empty' }, 'Brak celów'));
+      can('jobs:delete') ? h('button', { class: 'sm ghost', onclick: async () => { await act(() => DEL(`/api/jobs/${id}/targets/${t.id}`)); render(); } }, 'Usuń') : null) }], tg)) : h('div', { class: 'empty' }, 'Brak celów'));
   root.append(tbox);
   root.append(h('div', { class: 'panel flush', style: { marginTop: '14px' } }, h('div', { class: 'ph' }, h('h2', null, 'Przebiegi')), runsTable(runs)));
 }
@@ -200,7 +200,7 @@ async function pageSignatures(root) {
   const q = (p.q || '').toLowerCase();
   const list = items.filter(sg => !q || sg.name.toLowerCase().includes(q) || sg.category.includes(q));
   root.append(pageHead('Sygnatury detekcyjne', 'Bezpieczne, pasywne cechy: nagłówki, ciasteczka, favicon, fragmenty HTML, ścieżki GET – bez prób logowania i eksploitacji',
-    can('signatures:create') ? h('button', { class: 'primary', onclick: () => sigEditor(null, matcher_types) }, '+ Nowa sygnatura') : null,
+    can('signatures:create') ? h('button', { class: 'primary', onclick: () => sigEditor(null, matcher_types) }, 'Nowa sygnatura') : null,
     can('data:export') ? h('button', { onclick: () => download('/api/signatures/export') }, '⇩ Eksport własnych') : null,
     can('signatures:create') ? h('button', { onclick: () => { const fi = h('input', { type: 'file', accept: '.json' }); modal('Import sygnatur (JSON)', fi, [{ label: 'Anuluj' }, { label: 'Importuj', cls: 'primary', run: async () => {
       const fd = new FormData(); fd.append('file', fi.files[0]); const r = await api('POST', '/api/signatures/import', fd); toast(`Dodano ${r.added}` + (r.errors.length ? `, błędy: ${r.errors.join('; ')}` : ''), r.errors.length > 0); render();
@@ -215,7 +215,7 @@ async function pageSignatures(root) {
     { title: 'Dopasowania', render: sg => h('div', { class: 'small' }, sg.definition.matchers.map(m => h('div', null, `${m.type}${m.name ? ' ' + m.name : ''}${m.path ? ' ' + m.path : ''}${m.pattern ? ' /' + m.pattern + '/' : ''}${m.value ? ' = ' + m.value : ''} · w=${m.weight}`))) },
     { title: 'Ciekawość', cls: 'num', render: sg => sg.definition.curiosity ? '+' + sg.definition.curiosity : '' },
     { title: '', render: sg => h('span', { class: 'nowrap' }, h('button', { class: 'sm ghost', onclick: () => sigEditor(sg, matcher_types) }, sg.builtin ? 'podgląd / test' : 'edytuj'),
-      !sg.builtin && can('signatures:delete') ? h('button', { class: 'sm ghost', onclick: async () => { if (await confirmBox('Usunąć sygnaturę ' + sg.name + '?')) { await act(() => DEL('/api/signatures/' + sg.id)); render(); } } }, '✕') : null) },
+      !sg.builtin && can('signatures:delete') ? h('button', { class: 'sm ghost', onclick: async () => { if (await confirmBox('Usunąć sygnaturę ' + sg.name + '?')) { await act(() => DEL('/api/signatures/' + sg.id)); render(); } } }, 'Usuń') : null) },
   ], list)));
 }
 

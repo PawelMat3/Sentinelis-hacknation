@@ -11,68 +11,62 @@ async function pageDashboard(root) {
   const t = d.totals;
   const kpi = (v, l, sub, cls, href) => h('div', { class: 'kpi ' + (cls || ''), 'data-href': href || null, onclick: href ? () => location.hash = href : null },
     h('div', { class: 'v' }, fmtN(v)), h('div', { class: 'l' }, l), sub ? h('div', { class: 's' }, sub) : null);
-  root.append(pageHead('Pulpit', 'Sentinelis – stan powierzchni ataku',
-    can('scans:run') ? h('button', { class: 'danger', title: 'Natychmiast wstrzymuje wszystkie trwające skany', onclick: async () => {
-      if (await confirmBox('Wstrzymać WSZYSTKIE trwające skany?', 'Wstrzymaj')) { const r = await act(() => POST('/api/scans/stop-all')); toast(`Wstrzymano: ${r.paused}`); }
-    } }, '■ Stop wszystkich skanów') : null));
+  root.append(pageHead('Pulpit', null,
+    can('scans:run') ? h('a', { class: 'btn primary', href: '#/quick' }, 'Szybki skan') : null,
+    can('scans:run') && d.active_runs.length ? h('button', { class: 'danger', title: 'Natychmiast wstrzymuje wszystkie trwające skany', onclick: async () => {
+      if (await confirmBox('Wstrzymać WSZYSTKIE trwające skany?', 'Wstrzymaj')) { const r = await act(() => POST('/api/scans/stop-all')); toast(`Wstrzymano: ${r.paused}`); render(); }
+    } }, 'Wstrzymaj wszystkie skany') : null));
 
-  if (can('scans:run')) root.append(h('div', { class: 'notice', style: { display: 'flex', alignItems: 'center', gap: '12px' } },
-    h('span', { style: { flex: 1 } }, !ASI.meta.has_demo_data ? 'Aby przeskanować nowy cel (domenę lub IP), użyj Szybkiego skanu.'
-      : ASI.scope === 'demo' ? 'Widzisz dane z symulowanej sieci demonstracyjnej. Prawdziwe wyniki są w widoku „Prawdziwe” (przełącznik w menu po lewej).'
-      : ASI.scope === 'all' ? 'Widzisz dane prawdziwe i demonstracyjne razem. Aby ukryć symulację, wybierz „Prawdziwe” w menu po lewej.'
-      : t.hosts ? 'Widzisz tylko prawdziwe dane (skany, importy, wpisy ręczne) – symulacja demonstracyjna jest ukryta.'
-      : 'Brak prawdziwych danych – przeskanuj cel Szybkim skanem albo obejrzyj symulację w widoku „Demo” (menu po lewej).'),
-    h('a', { class: 'btn', href: '#/quick' }, '▶ Szybki skan')));
+  // one short line about which dataset is shown – only when it matters
+  const scopeNote = !ASI.meta.has_demo_data ? null
+    : ASI.scope === 'demo' ? 'Widok „Demo”: dane z symulowanej sieci demonstracyjnej.'
+    : ASI.scope === 'all' ? 'Widok „Wszystkie”: dane prawdziwe i demonstracyjne razem.'
+    : !t.hosts ? 'Brak prawdziwych danych. Przeskanuj cel Szybkim skanem albo wybierz widok „Demo” w menu po lewej.' : null;
+  if (scopeNote) root.append(h('div', { class: 'notice' }, scopeNote));
+
+  // KISS: six numbers that answer "what needs attention", the rest as one line of links
+  const hostSub = [t.unstable && `${fmtN(t.unstable)} niestabilnych`, t.suspect && `${fmtN(t.suspect)} do potwierdzenia`, t.inactive && `${fmtN(t.inactive)} nieaktywnych`]
+    .filter(Boolean).join(' · ') || `z ${fmtN(t.hosts)} znanych`;
+  root.append(h('div', { class: 'kpis' },
+    kpi(t.critical, 'Krytyczne', 'priorytet analityczny', 'crit', '#/services?priority=critical'),
+    kpi(t.high, 'Wysokie', '', 'high', '#/services?priority=high'),
+    kpi(t.staging, 'Środowiska testowe', 'staging, dev, UAT', '', '#/services?category=staging'),
+    kpi(t.admin_panels, 'Panele administracyjne', '', '', '#/services?category=admin-panel'),
+    kpi(t.changes_24h, 'Zmiany w 24 h', `${fmtN(t.new_services_7d)} nowych usług w 7 dni`, '', '#/changes'),
+    kpi(t.active, 'Hosty aktywne', hostSub, '', '#/hosts')));
+  const also = [
+    [t.services, 'otwartych usług', '#/services'], [t.web, 'aplikacji WWW', '#/services?web=1'], [t.cert_problems, 'problemów z TLS', '#/services?sort=last_changed'],
+    [t.vuln_services, 'usług ze znanymi CVE', '#/quick'], [t.manual, 'wpisów ręcznych', '#/services?origin=manual']];
+  root.append(h('div', { class: 'also' }, also.map(([v, l, href]) => h('a', { href }, h('b', null, fmtN(v)), ' ' + l))));
 
   if (d.active_runs.length) {
     root.append(h('div', { class: 'panel', style: { marginBottom: '14px' } }, h('h2', null, 'Trwające i wstrzymane skany'),
-      d.active_runs.map(r => h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 220px 140px', gap: '12px', alignItems: 'center', padding: '6px 0' } },
+      d.active_runs.map(r => h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 220px 160px', gap: '12px', alignItems: 'center', padding: '6px 0' } },
         h('div', null, h('a', { href: '#/runs/' + r.id }, `#${r.id} ${r.job_name}`), ' ', statusChip(r.status), r.status_reason ? h('span', { class: 'small muted' }, ' ' + (PL.reason[r.status_reason] || r.status_reason)) : null),
         h('div', { class: 'progress' }, h('i', { style: { width: (r.progress * 100).toFixed(1) + '%' } })),
         h('div', { class: 'small muted right' }, `${fmtN(r.done_targets)}/${fmtN(r.total_targets)}` + (r.eta_sec ? ` · ETA ${dur(r.eta_sec)}` : ''))))));
   }
 
-  root.append(h('div', { class: 'kpis' },
-    kpi(t.active, 'Hosty aktywne', `z ${fmtN(t.hosts)} znanych`, '', '#/hosts?state=active'),
-    kpi(t.unstable, 'Niestabilne / okresowe', 'zależne od pory dnia', 'warn', '#/hosts?state=unstable'),
-    kpi(t.suspect, 'Oczekują potwierdzenia', 'brak odpowiedzi < N skanów', 'sus', '#/hosts?state=suspect'),
-    kpi(t.inactive, 'Nieaktywne', 'potwierdzone zniknięcie', '', '#/hosts?state=inactive'),
-    kpi(t.services, 'Otwarte usługi', `${fmtN(t.web)} aplikacji WWW`, '', '#/services'),
-    kpi(t.critical, 'Krytyczne', 'priorytet analityczny', 'crit', '#/services?priority=critical'),
-    kpi(t.high, 'Wysokie', '', 'high', '#/services?priority=high'),
-    kpi(t.staging, 'Środowiska testowe', 'staging / dev / UAT', 'warn', '#/services?category=staging'),
-    kpi(t.admin_panels, 'Panele administracyjne', '', '', '#/services?category=admin-panel'),
-    kpi(t.cert_problems, 'Problemy TLS', 'wygasłe / <14 dni / self-signed', '', '#/services?q=&sort=last_changed'),
-    kpi(t.changes_24h, 'Zmiany (24 h)', `${fmtN(t.new_services_7d)} nowych usług / 7 dni`, '', '#/changes'),
-    kpi(t.manual, 'Wpisy ręczne', 'traktowane jak dane skanu', '', '#/services?origin=manual'),
-    kpi(t.vuln_services, 'Usługi ze znanymi CVE', `${fmtN(t.critical_cve)} z krytycznymi (CVSS ≥ 9)`, 'crit', '#/quick')));
-
-  const top = h('div', { class: 'panel flush' }, h('div', { class: 'ph' }, h('h2', null, 'Najważniejsze znaleziska'), h('div', { class: 'sp' }), h('a', { href: '#/services' }, 'Wszystkie →')),
+  const top = h('div', { class: 'panel flush' }, h('div', { class: 'ph' }, h('h2', null, 'Najważniejsze znaleziska'), h('div', { class: 'sp' }), h('a', { href: '#/services' }, 'Wszystkie')),
     d.top_findings.length ? table([
-      { title: 'Priorytet', render: r => h('div', null, prioChip(r.priority), h('div', { style: { marginTop: '4px' } }, scoreEl(r.curiosity))) },
+      { title: 'Priorytet', render: r => prioScore(r.priority, r.curiosity) },
       { title: 'Usługa', render: r => h('div', null, h('span', { class: 'addr' }, `${r.address}:${r.port}`), r.hostname ? h('div', { class: 'sub' }, r.hostname) : null) },
-      { title: 'Co wykryto', render: r => h('div', null, h('div', { class: 'trunc' }, withOverride(r.title, 'title', r.observed) || withOverride(r.product, 'product', r.observed) || r.name), h('div', { class: 'sub' }, techList(r.tech), cats(r.categories))) },
-      { title: 'Status', render: r => h('div', null, r.triage ? h('span', { class: 'chip outline' }, PL.triage[r.triage]) : null, ' ', tags(r.tags)) },
-    ], d.top_findings, r => location.hash = '#/services/' + r.id) : h('div', { class: 'empty' }, 'Brak znalezisk – uruchom skan lub zaimportuj wyniki.'));
+      { title: 'Co wykryto', render: r => h('div', null, h('div', { class: 'trunc' }, withOverride(r.title, 'title', r.observed) || withOverride(r.product, 'product', r.observed) || r.name),
+        h('div', { class: 'sub' }, techList(r.tech, 3), r.triage ? h('span', { class: 'chip outline' }, PL.triage[r.triage]) : null)) },
+    ], d.top_findings, r => location.hash = '#/services/' + r.id) : h('div', { class: 'empty' }, 'Brak znalezisk. Uruchom skan lub zaimportuj wyniki.'));
 
-  const changes = h('div', { class: 'panel' }, h('div', { style: { display: 'flex' } }, h('h2', { style: { flex: 1 } }, 'Ostatnie istotne zmiany'), h('a', { href: '#/changes' }, 'Wszystkie →')), feed(d.recent_changes.slice(0, 14)));
+  const changes = h('div', { class: 'panel' }, h('div', { style: { display: 'flex' } }, h('h2', { style: { flex: 1 } }, 'Ostatnie istotne zmiany'), h('a', { href: '#/changes' }, 'Wszystkie')), feed(d.recent_changes.slice(0, 10)));
   root.append(h('div', { class: 'grid g-main' }, top, changes));
 
-  const unstable = h('div', { class: 'panel' }, h('h2', null, 'Hosty niestabilne / zależne od pory dnia'),
-    d.unstable.length ? d.unstable.map(x => h('div', { style: { padding: '6px 0', borderBottom: '1px solid var(--line)' } },
-      h('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } }, h('a', { class: 'addr', href: '#/hosts/' + x.id }, x.address), h('span', { class: 'small muted', style: { flex: 1 } }, x.pattern), histEl(x.history, 16)),
-      h('div', { style: { marginTop: '4px' } }, hostHours(x.hour_up, x.hour_probe))))
-      : h('div', { class: 'empty' }, 'Brak hostów niestabilnych'));
+  const unstable = h('div', { class: 'panel' }, h('div', { style: { display: 'flex' } }, h('h2', { style: { flex: 1 } }, 'Dostępność wg pory dnia'), h('a', { href: '#/hosts?state=unstable' }, 'Hosty niestabilne')),
+    hoursStrip(d.hourly_up),
+    h('p', { class: 'small muted' }, 'Odsetek hostów odpowiadających w danej godzinie. Host, który zwykle nie odpowiada o tej porze, jest oznaczany jako okresowy, a nie jako zniknięty.'),
+    d.unstable.length ? d.unstable.slice(0, 5).map(x => h('div', { style: { display: 'flex', gap: '10px', alignItems: 'center', padding: '6px 0', borderTop: '1px solid var(--line)' } },
+      h('a', { class: 'addr', href: '#/hosts/' + x.id }, x.address), h('span', { class: 'small muted', style: { flex: 1 } }, x.pattern), histEl(x.history, 16)))
+      : h('div', { class: 'muted small' }, 'Brak hostów niestabilnych.'));
   root.append(h('div', { class: 'grid g2', style: { marginTop: '14px' } },
-    h('div', { class: 'panel' }, h('h2', null, 'Zmiany w kolejnych przebiegach'), trendChart(d.trend)),
-    h('div', { class: 'panel' }, h('h2', null, 'Dostępność hostów wg godziny (wszystkie skany)'), hoursStrip(d.hourly_up),
-      h('p', { class: 'small muted' }, 'Odsetek znanych hostów odpowiadających w danej godzinie. Hosty, które zwykle nie odpowiadają o danej porze, nie generują alertu o zniknięciu – są klasyfikowane jako okresowe.'),
-      h('h3', null, 'Kategorie wykryć'), hbars(d.categories.slice(0, 9), i => location.hash = '#/services?category=' + encodeURIComponent(i.key), k => PL.cat[k] || k))));
-  root.append(h('div', { class: 'grid g3', style: { marginTop: '14px' } },
-    h('div', { class: 'panel' }, h('h2', null, 'Technologie'), hbars(d.top_tech.slice(0, 12), i => location.hash = '#/services?tech=' + encodeURIComponent(i.key))),
-    h('div', { class: 'panel' }, h('h2', null, 'Grupy wg favicony (mmh3)'), groupMini(d.favicon_groups, 'favicon')),
-    unstable));
-  root.append(h('div', { class: 'panel', style: { marginTop: '14px' } }, h('h2', null, 'Grupy wg wystawcy certyfikatu TLS'), groupMini(d.issuer_groups, 'cert_issuer')));
+    h('div', { class: 'panel' }, h('h2', null, 'Zmiany w kolejnych przebiegach'), trendChart(d.trend)), unstable));
+  root.append(h('p', { class: 'small muted', style: { marginTop: '14px' } }, 'Technologie, kategorie, favicony i wystawców certyfikatów znajdziesz w zakładce ', h('a', { href: '#/groups' }, 'Grupowanie'), '.'));
 }
 function groupMini(groups, by) {
   if (!groups || !groups.length) return h('div', { class: 'empty' }, 'Brak danych');
@@ -99,11 +93,11 @@ async function pageServices(root) {
   const upd = (k, v) => setParams('#/services', Object.assign({}, p, { [k]: v, offset: 0 }));
   const search = h('input', { type: 'search', placeholder: 'Szukaj: IP, nazwa, tytuł, technologia, port…', value: p.q || '', onkeydown: e => { if (e.key === 'Enter') upd('q', e.target.value); } });
   root.append(pageHead('Znaleziska', 'Usługi wykryte skanem, z importu i dodane ręcznie',
-    can('assets:create') ? h('button', { onclick: () => manualServiceForm() }, '+ Dodaj ręcznie') : null,
-    can('data:export') ? h('button', { onclick: () => download('/api/export/results' + qs(Object.assign({}, p, { format: 'csv', limit: '', offset: '' }))) }, '⇩ CSV') : null,
-    can('data:export') ? h('button', { onclick: () => download('/api/export/results' + qs(Object.assign({}, p, { format: 'json', limit: '', offset: '' }))) }, '⇩ JSON') : null));
+    can('assets:create') ? h('button', { onclick: () => manualServiceForm() }, 'Dodaj ręcznie') : null,
+    can('data:export') ? h('button', { onclick: () => download('/api/export/results' + qs(Object.assign({}, p, { format: 'csv', limit: '', offset: '' }))) }, 'Eksport CSV') : null,
+    can('data:export') ? h('button', { onclick: () => download('/api/export/results' + qs(Object.assign({}, p, { format: 'json', limit: '', offset: '' }))) }, 'Eksport JSON') : null));
   const active = [];
-  for (const k of ['category', 'tech', 'tag', 'favicon', 'cert_issuer', 'title', 'product', 'server', 'origin', 'host']) if (p[k]) active.push(h('span', { class: 'chip outline' }, `${k}: ${PL.cat[p[k]] || p[k]} `, h('a', { onclick: () => upd(k, '') }, '✕')));
+  for (const k of ['category', 'tech', 'tag', 'favicon', 'cert_issuer', 'title', 'product', 'server', 'origin', 'host']) if (p[k]) active.push(h('span', { class: 'chip outline' }, `${k}: ${PL.cat[p[k]] || p[k]} `, h('a', { onclick: () => upd(k, ''), 'aria-label': 'Usuń filtr', title: 'Usuń filtr' }, '✕')));
   root.append(h('div', { class: 'filters' }, search,
     seg([['', 'Wszystkie'], ['critical', 'Krytyczne'], ['high', 'Wysokie'], ['medium', 'Średnie'], ['low', 'Niskie']], p.priority || '', v => upd('priority', v)),
     select([['open', 'Otwarte'], ['gone', 'Zniknięte'], ['all', 'Wszystkie']], p.status, { onchange: e => upd('status', e.target.value) }),
@@ -115,16 +109,16 @@ async function pageServices(root) {
   const bulk = h('div', { class: 'filters hidden' });
   const refreshBulk = () => { bulk.classList.toggle('hidden', selected.size === 0); clear(bulk).append(h('b', null, `Zaznaczono: ${selected.size}`),
     can('assets:update') ? h('button', { class: 'sm', onclick: () => bulkTag([...selected]) }, 'Dodaj tag / triage') : null,
-    can('dojo:export') ? h('button', { class: 'sm', onclick: () => dojoDialog([...selected], []) }, '→ DefectDojo') : null); };
+    can('dojo:export') ? h('button', { class: 'sm', onclick: () => dojoDialog([...selected], []) }, 'Wyślij do DefectDojo') : null); };
   root.append(bulk);
   const cols = [
     { title: '', render: r => h('input', { type: 'checkbox', onchange: e => { e.target.checked ? selected.add(r.id) : selected.delete(r.id); refreshBulk(); } }) },
-    { title: 'Priorytet', render: r => h('div', null, prioChip(r.priority), h('div', { style: { marginTop: '4px' } }, scoreEl(r.curiosity))) },
+    { title: 'Priorytet', render: r => prioScore(r.priority, r.curiosity) },
     { title: 'Adres', render: r => h('div', null, h('span', { class: 'addr' }, `${r.address}:${r.port}/${r.proto}`), h('div', { class: 'sub' }, r.hostname || ''), r.host_state !== 'active' ? stateChip(r.host_state) : null) },
     { title: 'Usługa', render: r => h('div', null, withOverride(r.name, 'name', r.observed), ' ', h('span', { class: 'muted' }, withOverride([r.product, r.version].filter(Boolean).join(' '), 'product', r.observed)), r.origin !== 'scan' ? h('span', null, ' ', h('span', { class: 'chip manual' }, r.origin === 'manual' ? 'ręczny' : 'import')) : null) },
     { title: 'Aplikacja WWW', render: r => r.is_web ? h('div', null, h('div', { class: 'trunc' }, h('span', { class: 'muted' }, r.http_status + ' '), withOverride(r.title, 'title', r.observed) || h('span', { class: 'faint' }, '(brak tytułu)')), h('div', { class: 'sub' }, r.server)) : h('span', { class: 'faint' }, '—') },
-    { title: 'Technologie / kategorie', render: r => h('div', null, techList(r.tech, 4), h('div', null, cats(r.categories))) },
-    { title: 'Analityk', render: r => h('div', null, r.triage ? h('span', { class: 'chip outline' }, PL.triage[r.triage]) : null, ' ', tags(r.tags), r.has_note ? h('span', { title: 'notatka' }, ' ✎') : null) },
+    { title: 'Technologie', render: r => h('div', null, techList(r.tech, 3)) },
+    { title: 'Analityk', render: r => h('div', null, r.triage ? h('span', { class: 'chip outline' }, PL.triage[r.triage]) : null, ' ', tags(r.tags), r.has_note ? h('span', { class: 'small muted' }, ' notatka') : null) },
     { title: 'Ostatnio', cls: 'nowrap', render: r => h('div', { class: 'small' }, r.status === 'gone' ? h('span', { class: 'chip gone' }, 'zniknęła ' + ago(r.gone_at)) : ago(r.last_seen)) },
   ];
   root.append(h('div', { class: 'panel flush' }, data.items.length ? table(cols, data.items, r => location.hash = '#/services/' + r.id) : h('div', { class: 'empty' }, 'Brak wyników dla wybranych filtrów'),
@@ -148,7 +142,7 @@ async function pageService(root, id) {
   const a = sv.annotation || { tags: [], overrides: {} };
   root.append(pageHead(`${sv.address}:${sv.port}/${sv.proto}`, h('span', null, h('a', { href: '#/services' }, 'Znaleziska'), ' / ', h('a', { href: '#/hosts/' + sv.host_id }, sv.hostname || sv.address)),
     prioChip(sv.priority), statusChip(sv.status),
-    can('dojo:export') ? h('button', { onclick: () => dojoDialog([sv.id], []) }, '→ DefectDojo') : null,
+    can('dojo:export') ? h('button', { onclick: () => dojoDialog([sv.id], []) }, 'Wyślij do DefectDojo') : null,
     can('assets:delete') ? h('button', { class: 'danger', onclick: async () => { if (await confirmBox('Usunąć tę usługę? (zostanie ponownie wykryta przy kolejnym skanie, jeśli nadal istnieje)')) { await act(() => DEL('/api/services/' + id), 'Usunięto'); location.hash = '#/services'; } } }, 'Usuń') : null));
 
   const ov = sv.observed || {};
@@ -296,12 +290,12 @@ async function pageHosts(root) {
   const p = Object.assign({ limit: 50, offset: 0 }, routeParams());
   const data = await GET('/api/hosts' + qs(p));
   const upd = (k, v) => setParams('#/hosts', Object.assign({}, p, { [k]: v, offset: 0 }));
-  root.append(pageHead('Hosty', 'Stan dostępności – maszyna stanów: aktywny → oczekuje potwierdzenia → nieaktywny; niestabilny/okresowy',
-    can('assets:create') ? h('button', { onclick: () => manualServiceForm() }, '+ Dodaj host') : null));
+  root.append(pageHead('Hosty', 'Dostępność hostów w kolejnych skanach',
+    can('assets:create') ? h('button', { onclick: () => manualServiceForm() }, 'Dodaj host') : null));
   root.append(h('div', { class: 'filters' },
     h('input', { type: 'search', placeholder: 'IP, nazwa, system…', value: p.q || '', onkeydown: e => { if (e.key === 'Enter') upd('q', e.target.value); } }),
     seg([['', 'Wszystkie'], ['active', 'Aktywne'], ['unstable', 'Niestabilne'], ['suspect', 'Oczekujące'], ['inactive', 'Nieaktywne']], p.state || '', v => upd('state', v)),
-    p.tag ? h('span', { class: 'chip outline' }, 'tag: ' + p.tag + ' ', h('a', { onclick: () => upd('tag', '') }, '✕')) : null,
+    p.tag ? h('span', { class: 'chip outline' }, 'tag: ' + p.tag + ' ', h('a', { onclick: () => upd('tag', ''), 'aria-label': 'Usuń filtr', title: 'Usuń filtr' }, '✕')) : null,
     select([['', 'Sortuj: ciekawość'], ['last_seen', 'ostatnio widziane'], ['first_seen', 'najnowsze'], ['state', 'stan']], p.sort || '', { onchange: e => upd('sort', e.target.value) })));
   root.append(h('div', { class: 'panel flush' }, data.items.length ? table([
     { title: 'Stan', render: r => stateChip(r.state) },
@@ -319,7 +313,7 @@ async function pageHost(root, id) {
   const x = await GET('/api/hosts/' + id);
   const a = x.annotation || { tags: [], overrides: {} };
   root.append(pageHead(x.address, h('span', null, h('a', { href: '#/hosts' }, 'Hosty'), ' / ', x.hostname || ''), stateChip(x.state),
-    can('assets:create') ? h('button', { onclick: () => manualServiceForm(x) }, '+ Usługa ręcznie') : null,
+    can('assets:create') ? h('button', { onclick: () => manualServiceForm(x) }, 'Dodaj usługę') : null,
     can('assets:delete') ? h('button', { class: 'danger', onclick: async () => { if (await confirmBox('Usunąć host wraz z usługami i adnotacjami?')) { await act(() => DEL('/api/hosts/' + id), 'Usunięto'); location.hash = '#/hosts'; } } }, 'Usuń') : null));
   const avail = x.probes ? Math.round(x.ups / x.probes * 100) : 0;
   root.append(h('div', { class: 'grid g2' },
@@ -356,10 +350,13 @@ async function pageChanges(root) {
   const upd = (k, v) => setParams('#/changes', Object.assign({}, p, { [k]: v }));
   const done = runs.filter(r => r.status === 'completed');
   root.append(pageHead('Zmiany w czasie', 'Nowe, znikające i zmienione usługi oraz zmiany stanu hostów',
-    can('data:export') ? h('button', { onclick: () => download('/api/export/changes' + qs(Object.assign({}, p, { format: 'csv' }))) }, '⇩ CSV') : null,
-    can('data:export') ? h('button', { onclick: () => download('/api/export/changes' + qs(Object.assign({}, p, { format: 'json' }))) }, '⇩ JSON') : null));
-  const a = select(done.map(r => [r.id, `#${r.id} ${r.job_name} · ${fmtT(r.finished_at)}`]), done[1] ? done[1].id : '');
-  const b = select(done.map(r => [r.id, `#${r.id} ${r.job_name} · ${fmtT(r.finished_at)}`]), done[0] ? done[0].id : '');
+    can('data:export') ? h('button', { onclick: () => download('/api/export/changes' + qs(Object.assign({}, p, { format: 'csv' }))) }, 'Eksport CSV') : null,
+    can('data:export') ? h('button', { onclick: () => download('/api/export/changes' + qs(Object.assign({}, p, { format: 'json' }))) }, 'Eksport JSON') : null));
+  // default: the latest run and the previous run OF THE SAME JOB (comparing two different jobs is meaningless)
+  const prevOf = x => done.find(r => r.id < x.id && r.job_id === x.job_id);
+  const latest = done.find(r => prevOf(r)) || done[0], prev = latest ? prevOf(latest) : null;
+  const a = select(done.map(r => [r.id, `#${r.id} ${r.job_name} · ${fmtT(r.finished_at)}`]), prev ? prev.id : '');
+  const b = select(done.map(r => [r.id, `#${r.id} ${r.job_name} · ${fmtT(r.finished_at)}`]), latest ? latest.id : '');
   const out = h('div');
   root.append(h('div', { class: 'panel', style: { marginBottom: '14px' } }, h('h2', null, 'Porównanie dwóch przebiegów'),
     h('div', { class: 'filters' }, h('span', null, 'Bazowy (A):'), a, h('span', null, 'Nowszy (B):'), b,
@@ -378,7 +375,7 @@ async function pageChanges(root) {
     { title: 'Ważność', render: c => prioChip(c.severity) },
     { title: 'Przebieg', render: c => c.run_id ? h('a', { href: '#/runs/' + c.run_id }, '#' + c.run_id) : '—' },
     { title: 'Czas', cls: 'nowrap', render: c => fmtT(c.created_at) },
-    { title: '', render: c => can('dojo:export') ? h('button', { class: 'sm ghost', title: 'Wyślij do DefectDojo', onclick: () => dojoDialog([], [c.id]) }, '→DD') : null },
+    { title: '', render: c => can('dojo:export') ? h('button', { class: 'sm ghost', title: 'Wyślij do DefectDojo', onclick: () => dojoDialog([], [c.id]) }, 'DefectDojo') : null },
   ], rows) : h('div', { class: 'empty' }, 'Brak zmian')));
   if (a.value && b.value && a.value !== b.value) renderCompare(out, await GET(`/api/compare?a=${a.value}&b=${b.value}`));
 }

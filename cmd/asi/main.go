@@ -242,7 +242,12 @@ func serve(args []string) error {
 		return err
 	}
 	certFile, keyFile := env("ASI_TLS_CERT", ""), env("ASI_TLS_KEY", "")
-	srv := api.New(st, m, web.Static(), api.Config{SecureCookie: envBool("ASI_SECURE_COOKIE", certFile != ""), MaxRate: maxRate, MaxTargets: maxTargets,
+	static := web.Static()
+	if dir := env("ASI_WEB_DIR", ""); dir != "" { // development: edit the dashboard without rebuilding
+		static = os.DirFS(dir)
+		log.Printf("web: serving dashboard files from %s (ASI_WEB_DIR, development only)", dir)
+	}
+	srv := api.New(st, m, static, api.Config{SecureCookie: envBool("ASI_SECURE_COOKIE", certFile != ""), MaxRate: maxRate, MaxTargets: maxTargets,
 		Version: version, NmapVersion: nmapVersion, Demo: *demoMode, TrustProxy: envBool("ASI_TRUST_PROXY", false),
 		SessionTTL: time.Duration(envInt("ASI_SESSION_HOURS", 12)) * time.Hour})
 	hs := &http.Server{Addr: *listen, Handler: srv.Handler(), ReadHeaderTimeout: 10 * time.Second, IdleTimeout: 120 * time.Second}

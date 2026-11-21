@@ -3,14 +3,14 @@
 
 async function pageUsers(root) {
   const [users, roles] = await Promise.all([GET('/api/users'), GET('/api/roles')]);
-  root.append(pageHead('Użytkownicy', 'Administracja', h('button', { class: 'primary', onclick: () => userForm(null, roles) }, '+ Nowy użytkownik')));
+  root.append(pageHead('Użytkownicy', 'Administracja', h('button', { class: 'primary', onclick: () => userForm(null, roles) }, 'Nowy użytkownik')));
   root.append(h('div', { class: 'panel flush' }, table([
     { title: 'Login', render: u => h('b', null, u.username) }, { title: 'Nazwa', render: u => u.display_name },
     { title: 'Rola', render: u => h('span', { class: 'chip outline' }, u.role_name) },
     { title: 'Status', render: u => u.disabled ? h('span', { class: 'chip inactive' }, 'zablokowany') : h('span', { class: 'chip ok' }, 'aktywny') },
     { title: 'Ostatnie logowanie', render: u => fmtT(u.last_login) },
     { title: '', render: u => h('span', null, h('button', { class: 'sm ghost', onclick: () => userForm(u, roles) }, 'edytuj'),
-      u.id !== ASI.me.id ? h('button', { class: 'sm ghost', onclick: async () => { if (await confirmBox('Usunąć użytkownika ' + u.username + '?')) { await act(() => DEL('/api/users/' + u.id)); render(); } } }, '✕') : null) }], users)));
+      u.id !== ASI.me.id ? h('button', { class: 'sm ghost', onclick: async () => { if (await confirmBox('Usunąć użytkownika ' + u.username + '?')) { await act(() => DEL('/api/users/' + u.id)); render(); } } }, 'Usuń') : null) }], users)));
 }
 function userForm(u, roles) {
   const login = h('input', { value: u ? u.username : '', disabled: !!u }), name = h('input', { value: u ? u.display_name : '' });
@@ -28,7 +28,7 @@ function userForm(u, roles) {
 
 async function pageRoles(root) {
   const [roles, perms] = await Promise.all([GET('/api/roles'), GET('/api/permissions')]);
-  root.append(pageHead('Role i uprawnienia (RBAC)', 'Administracja', can('admin:roles') ? h('button', { class: 'primary', onclick: () => roleForm(null, perms) }, '+ Nowa rola') : null));
+  root.append(pageHead('Role i uprawnienia (RBAC)', 'Administracja', can('admin:roles') ? h('button', { class: 'primary', onclick: () => roleForm(null, perms) }, 'Nowa rola') : null));
   const groups = [...new Set(perms.map(p => p.group))];
   const has = (r, p) => r.permissions.includes('*') || r.permissions.includes(p);
   const thead = h('tr', null, h('th', null, 'Uprawnienie'), roles.map(r => h('th', { class: 'right', title: r.description },
@@ -159,7 +159,7 @@ function shell() {
   const side = h('aside', { class: 'side' }, h('div', { class: 'brand' }, logo(), h('div', null, 'Sentinelis', h('small', null, 'Attack Surface Intelligence'))), nav,
     ASI.meta.has_demo_data ? scopeSwitch() : null,
     h('div', { class: 'who' }, h('b', null, ASI.me.display_name || ASI.me.username), ASI.me.role_name,
-      h('div', { class: 'row' }, h('button', { class: 'sm', onclick: passwordForm }, 'Hasło'), h('button', { class: 'sm', onclick: theme, title: 'Jasny/ciemny' }, '◐'),
+      h('div', { class: 'row' }, h('button', { class: 'sm', onclick: passwordForm }, 'Hasło'), h('button', { class: 'sm', onclick: theme, title: 'Przełącz jasny lub ciemny motyw' }, 'Motyw'),
         h('button', { class: 'sm', onclick: async () => { await api('POST', '/api/auth/logout', {}, { noAuthRedirect: true }).catch(() => {}); renderLogin('Wylogowano.'); } }, 'Wyloguj'))));
   root.append(h('div', { class: 'app' }, side, h('main', { class: 'main', id: 'page' })));
 }
@@ -170,6 +170,7 @@ const ROUTES = [
   [/^#\/signatures$/, pageSignatures], [/^#\/io$/, pageIO], [/^#\/admin\/users$/, pageUsers], [/^#\/admin\/roles$/, pageRoles], [/^#\/admin\/settings$/, pageSettings], [/^#\/admin\/audit$/, pageAudit],
 ];
 
+let renderSeq = 0;
 async function render(keepScroll) {
   ASI.timers.forEach(clearTimeout); ASI.timers = [];
   if (!ASI.me) return;
@@ -179,16 +180,21 @@ async function render(keepScroll) {
   document.querySelectorAll('[data-nav]').forEach(a => a.classList.toggle('active', path === a.dataset.nav || path.startsWith(a.dataset.nav + '/')));
   const page = document.getElementById('page');
   const y = window.scrollY;
+  const seq = ++renderSeq;
   for (const [re, fn] of ROUTES) {
     const m = re.exec(path);
     if (!m) continue;
     const tmp = h('div');
+    // show a loading state instead of a blank (or stale) page when data takes a moment
+    const slow = keepScroll ? null : setTimeout(() => { if (seq === renderSeq) clear(page).append(h('div', { class: 'loading', role: 'status' }, 'Wczytywanie…')); }, 200);
     try {
       await fn(tmp, m[1]);
     } catch (e) {
       if (e.message === 'Sesja wygasła') return;
       tmp.append(h('div', { class: 'panel' }, h('div', { class: 'notice warn' }, 'Błąd: ' + e.message)));
     }
+    clearTimeout(slow);
+    if (seq !== renderSeq) return; // a newer navigation already started
     clear(page).append(...tmp.childNodes);
     if (keepScroll) window.scrollTo(0, y); else window.scrollTo(0, 0);
     return;

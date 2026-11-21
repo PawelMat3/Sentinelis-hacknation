@@ -89,6 +89,7 @@ Docker: `docker compose up -d` (opcjonalnie `--profile lab`).
 | `ASI_MAX_RATE`, `ASI_MAX_TARGETS` | `2000`, `1048576` | globalne limity bezpieczeństwa |
 | `ASI_TLS_CERT`, `ASI_TLS_KEY` | – | HTTPS bez proxy |
 | `ASI_SECURE_COOKIE`, `ASI_TRUST_PROXY`, `ASI_SESSION_HOURS` | | sesje |
+| `ASI_WEB_DIR` | – | tylko do pracy nad UI: serwuje pliki panelu z dysku zamiast z binarki |
 
 ## Narzędzia CLI
 

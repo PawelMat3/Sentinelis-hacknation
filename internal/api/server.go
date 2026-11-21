@@ -318,9 +318,9 @@ func (s *Server) Handler() http.Handler {
 			if _, err := fs.Stat(s.static, p); err != nil {
 				r.URL.Path = "/"
 			}
-			if strings.HasSuffix(p, ".html") || p == "index.html" {
-				w.Header().Set("Cache-Control", "no-cache")
-			}
+			// revalidate every UI file: after an upgrade browsers must not keep an
+			// old core.js next to a new main.js (the files are small)
+			w.Header().Set("Cache-Control", "no-cache")
 			files.ServeHTTP(w, r)
 		})
 	}
